@@ -41,7 +41,6 @@ class ComposeBar extends HookConsumerWidget {
     final draftKey = composeDraftKey(channelId, threadHeadId: threadHeadId);
     final draftRevision = useRef(0);
     final draftIdentity = _composerDraftIdentity(ref);
-    // A -> B -> A is a new visit, even when the eventual draft key is equal.
     final visit = useMemoized(Object.new, [draftIdentity, draftKey]);
     final currentVisit = useRef(visit)..value = visit;
     final activeSend = useRef<Object?>(null);
@@ -473,6 +472,7 @@ class ComposeBar extends HookConsumerWidget {
         return;
       }
       final submittedDraftRevision = draftRevision.value;
+      final submittedUploadGeneration = uploadGeneration.value;
       final attempt = Object();
       activeSend.value = attempt;
       isSending.value = true;
@@ -483,7 +483,10 @@ class ComposeBar extends HookConsumerWidget {
                   ':${ref.read(myPubkeyProvider) ?? 'anon'}' ==
               draftIdentity;
       void ensureCurrent() {
-        if (!ownsSource()) throw const _ComposeSendCancelled();
+        if (!ownsSource() ||
+            uploadGeneration.value != submittedUploadGeneration) {
+          throw const _ComposeSendCancelled();
+        }
       }
 
       // Resolved before any await: see
@@ -506,7 +509,6 @@ class ComposeBar extends HookConsumerWidget {
         ensureCurrent();
         if (draftRevision.value != submittedDraftRevision) return;
 
-        // Agents and humans both require deliberate invitation intent.
         final nonMembers = [
           ...scan.humans,
           ...selectedMentions.where(
@@ -533,7 +535,6 @@ class ComposeBar extends HookConsumerWidget {
         );
         final channelActions = ref.read(channelActionsProvider);
 
-        // Failed preparation never silently changes the intended audience.
         Future<void> addMentionedNonMembers() => outgoing.addNonMembers(
           channelActions,
           scan: scan,
@@ -569,9 +570,7 @@ class ComposeBar extends HookConsumerWidget {
         final draftMentions = Map<String, MentionCandidate>.of(
           mentionMap.value,
         );
-        // Membership preparation is cancellable intent, not a detached send.
-        // Keep that draft recoverable until preparation succeeds. Ordinary
-        // member-only media keeps the existing background delivery behavior.
+        // Retain invitation drafts; member-only media delivers in background.
         final preparingMembership =
             scan.agentPubkeys.isNotEmpty || scan.humans.isNotEmpty;
         int? clearedDraftRevision;
@@ -650,7 +649,6 @@ class ComposeBar extends HookConsumerWidget {
               focusNode.requestFocus();
             }
           } finally {
-            // An uncleared source still owns these files (including on error).
             final sourceRetainsFiles =
                 preparingMembership &&
                 clearedDraftRevision == null &&
@@ -667,7 +665,7 @@ class ComposeBar extends HookConsumerWidget {
           }
         }());
       } on _ComposeSendCancelled {
-        // The source draft was never cleared during preparation.
+        // Preparation left the source draft intact.
       } on StateError catch (error) {
         if (ownsSource()) {
           messenger?.showSnackBar(

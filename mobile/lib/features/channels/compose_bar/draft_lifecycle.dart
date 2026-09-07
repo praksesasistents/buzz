@@ -88,8 +88,7 @@ void _useComposeDraftLifecycle({
   required _IOSAttachmentPopoverController iosAttachmentPopover,
   required VoidCallback onDraftIdentityChanged,
 }) {
-  // Hook disposal can lag the replacement effect. An old text listener must
-  // not persist the incoming draft into its previous channel/account scope.
+  // Fence old listeners before effects restore an incoming draft.
   final owner = useMemoized(Object.new, [draftKey, draftIdentity]);
   final currentOwner = useRef(owner)..value = owner;
   final lastDraftIdentity = useRef<String?>(null);
