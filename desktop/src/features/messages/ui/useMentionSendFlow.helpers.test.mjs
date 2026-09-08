@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   formatMessageSendError,
+  formatMentionSendError,
   getErrorMessage,
   mergeMentionRecipients,
   mentionRevalidationOptions,
@@ -60,4 +61,16 @@ test("revalidation carries captured and prepared agent keys independently of the
       intendedAgentPubkeys: ["a".repeat(64), "b".repeat(64), "c".repeat(64)],
     },
   );
+});
+
+// The extracted freshness prefix keeps the root's send-error policy unchanged.
+test("formatMentionSendError preserves authorization guidance and other failures", async () => {
+  const { AgentMentionAuthorizationError } = await import(
+    "../lib/agentMentionRevalidation.ts"
+  );
+  const authorization = new AgentMentionAuthorizationError();
+  assert.equal(formatMentionSendError(authorization), authorization.message);
+  for (const error of [new Error("relay rejected"), "upload rejected", null]) {
+    assert.equal(formatMentionSendError(error), formatMessageSendError(error));
+  }
 });
