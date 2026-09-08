@@ -92,8 +92,7 @@
   line-height: calc(
     1em +
     var(--inline-chip-padding-block-start) +
-    var(--inline-chip-padding-block-end) +
-    0.25rem
+    var(--inline-chip-padding-block-end)
   );
   overflow-wrap: anywhere;
   text-align: left;

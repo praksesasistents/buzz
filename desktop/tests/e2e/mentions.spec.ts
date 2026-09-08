@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import { waitForAnimations } from "../helpers/animations";
 
@@ -86,6 +86,33 @@ const JOIN_COLLAPSE_GROUPED_TEXT =
 const JOIN_COLLAPSE_CAPTURE_WIDTH = 560;
 const JOIN_COLLAPSE_CAPTURE_HEIGHT = 260;
 const JOIN_COLLAPSE_CAPTURE_VERTICAL_PADDING = 24;
+
+async function mentionVisualStyle(mentionChip: Locator) {
+  return mentionChip.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderRadius: style.borderRadius,
+      color: style.color,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
+      padding: style.padding,
+    };
+  });
+}
+
+/** Measure the production timeline line boxes around a rendered mention. */
+async function timelineMentionMetrics(mentionChip: Locator) {
+  return mentionChip.evaluate((element) => {
+    const chipStyle = getComputedStyle(element);
+    const paragraphStyle = getComputedStyle(element.closest("p") ?? element);
+    return {
+      chipLineHeight: parseFloat(chipStyle.lineHeight),
+      paragraphLineHeight: parseFloat(paragraphStyle.lineHeight),
+    };
+  });
+}
 
 /** Locator scoped to the mention autocomplete dropdown inside the composer. */
 function autocomplete(page: import("@playwright/test").Page) {
@@ -1523,6 +1550,7 @@ test("selecting a persona mention creates a channel agent before sending and sta
   });
   await expect(composerChip).toBeVisible();
   await expect(composerChip).toHaveText("Fizz");
+  const composerStyle = await mentionVisualStyle(composerChip);
 
   const baselineCommands = await readCommandLog(page);
   const baselineCreateCount = commandCount(
@@ -1582,6 +1610,13 @@ test("selecting a persona mention creates a channel agent before sending and sta
     .locator("[data-mention].agent-mention-highlight", { hasText: "Fizz" });
   await expect(mentionChip).toBeVisible();
   await expect(mentionChip).toHaveText("Fizz");
+  expect(await mentionVisualStyle(mentionChip)).toEqual(composerStyle);
+  const timelineMetrics = await timelineMentionMetrics(mentionChip);
+  expect(timelineMetrics.chipLineHeight).toBe(18);
+  expect(timelineMetrics.chipLineHeight).toBeLessThanOrEqual(
+    timelineMetrics.paragraphLineHeight,
+  );
+  expect(timelineMetrics.paragraphLineHeight).toBe(20);
 });
 
 test("selecting a persona mention reuses an existing persona agent", async ({
@@ -4505,6 +4540,9 @@ test("mention text is highlighted in sent messages", async ({ page }) => {
   await input.fill("Hey @bo");
   await autocomplete(page).getByText("bob").click();
   await expect(input).toHaveText("Hey @bob ");
+  const composerStyle = await mentionVisualStyle(
+    input.locator(".human-mention-highlight", { hasText: "bob" }),
+  );
   await page.keyboard.type(suffix);
   await page.getByTestId("send-message").click();
 
@@ -4517,6 +4555,14 @@ test("mention text is highlighted in sent messages", async ({ page }) => {
   await expect(mentionChip).toBeVisible();
   await expect(mentionChip).toHaveText("bob");
   await expect(mentionChip).toHaveClass(/inline-chip-icon-human/);
+  expect(await mentionVisualStyle(mentionChip)).toEqual(composerStyle);
+
+  const timelineMetrics = await timelineMentionMetrics(mentionChip);
+  expect(timelineMetrics.chipLineHeight).toBe(18);
+  expect(timelineMetrics.chipLineHeight).toBeLessThanOrEqual(
+    timelineMetrics.paragraphLineHeight,
+  );
+  expect(timelineMetrics.paragraphLineHeight).toBe(20);
 });
 
 test("clicking author name opens user profile panel", async ({ page }) => {
