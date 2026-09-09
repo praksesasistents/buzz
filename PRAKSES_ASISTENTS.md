@@ -11,3 +11,6 @@ by immutable digest.
 Keep `main` synchronized with upstream. Place organization-specific application
 changes on reviewed branches and preserve a clear upstream merge path.
 
+Infrastructure changes must allocate new network addresses for Buzz. Existing
+production, allowlisted, and VPN egress addresses must never be detached,
+released, reassociated, or repurposed for this service.
